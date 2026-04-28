@@ -19,7 +19,7 @@ public class CallSignalingHandler extends TextWebSocketHandler {
     private final ObjectMapper mapper = new ObjectMapper();
     private final JwtUtil jwtUtil;
 
-    private final Map<Long, WebSocketSession> userSession = new ConcurrentHashMap<>();
+    private final Map<Long, Set<WebSocketSession>> userSessions = new ConcurrentHashMap<>();
     private final Set<Long> busyUsers = ConcurrentHashMap.newKeySet();
 
     public CallSignalingHandler(JwtUtil jwtUtil) {
@@ -34,8 +34,26 @@ public class CallSignalingHandler extends TextWebSocketHandler {
             return;
         }
         Long userId = jwtUtil.getUserIdFromToken(token);
-        userSession.put(userId, session);
-        log.info("Call WS connected: userId={}", userId);
+        userSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(session);
+        log.info("Call WS connected: userId={}, total sessions={}", userId,
+            userSessions.getOrDefault(userId, Set.of()).size());
+    }
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        Long userId = getUserIdForSession(session);
+        if (userId != null) {
+            Set<WebSocketSession> sessions = userSessions.get(userId);
+            if (sessions != null) {
+                sessions.remove(session);
+                if (sessions.isEmpty()) {
+                    userSessions.remove(userId);
+                    busyUsers.remove(userId);
+                }
+            }
+            log.info("Call WS disconnected: userId={}, remaining sessions={}", userId,
+                userSessions.getOrDefault(userId, Set.of()).size());
+        }
     }
 
     @Override
@@ -132,37 +150,39 @@ public class CallSignalingHandler extends TextWebSocketHandler {
     }
 
     @Override
-    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        Long userId = getUserId(session);
-        if (userId != null) {
-            userSession.remove(userId);
-            busyUsers.remove(userId);
-            log.info("Call WS disconnected: userId={}", userId);
-        }
-    }
-
-    @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
         log.error("Call WS transport error", exception);
     }
 
     public boolean isUserOnline(Long userId) {
-        WebSocketSession s = userSession.get(userId);
-        return s != null && s.isOpen();
+        Set<WebSocketSession> sessions = userSessions.get(userId);
+        if (sessions == null || sessions.isEmpty()) return false;
+        for (WebSocketSession s : sessions) {
+            if (s.isOpen()) return true;
+        }
+        return false;
     }
 
     private void sendToUser(Long userId, Map<String, Object> payload) {
-        WebSocketSession s = userSession.get(userId);
-        if (s != null && s.isOpen()) {
-            try {
-                s.sendMessage(new TextMessage(mapper.writeValueAsString(payload)));
-            } catch (IOException ignored) {}
+        Set<WebSocketSession> sessions = userSessions.get(userId);
+        if (sessions == null) return;
+        String json;
+        try { json = mapper.writeValueAsString(payload); } catch (IOException e) { return; }
+        TextMessage msg = new TextMessage(json);
+        for (WebSocketSession s : sessions) {
+            if (s.isOpen()) {
+                try { s.sendMessage(msg); } catch (IOException ignored) {}
+            }
         }
     }
 
-    private Long getUserId(WebSocketSession session) {
-        for (Map.Entry<Long, WebSocketSession> e : userSession.entrySet()) {
-            if (e.getValue().getId().equals(session.getId())) return e.getKey();
+    private Long getUserId(WebSocketSession session) { return getUserIdForSession(session); }
+
+    private Long getUserIdForSession(WebSocketSession session) {
+        for (Map.Entry<Long, Set<WebSocketSession>> e : userSessions.entrySet()) {
+            for (WebSocketSession s : e.getValue()) {
+                if (s.getId().equals(session.getId())) return e.getKey();
+            }
         }
         return null;
     }
