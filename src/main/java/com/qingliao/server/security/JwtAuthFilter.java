@@ -32,7 +32,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String method = request.getMethod();
         log.debug("JwtAuthFilter: {} {} - checking...", method, path);
 
-        if (path.startsWith("/api/auth/") || path.startsWith("/uploads/") || path.startsWith("/ws")) {
+        if (path.startsWith("/api/auth/") || path.startsWith("/api/app/") || path.startsWith("/uploads/") || path.startsWith("/ws")) {
             log.debug("JwtAuthFilter: {} {} - skipped (public path)", method, path);
             filterChain.doFilter(request, response);
             return;
