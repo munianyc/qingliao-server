@@ -92,6 +92,7 @@ public class CallSignalingHandler extends TextWebSocketHandler {
                     forward.put("callerId", userId);
                     forward.put("callerName", msg.getOrDefault("callerName", ""));
                     forward.put("sdp", msg.get("sdp"));
+                    forward.put("videoMode", msg.getOrDefault("videoMode", true));
                     sendToUser(targetId, forward);
                     break;
                 }
