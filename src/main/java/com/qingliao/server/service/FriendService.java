@@ -2,9 +2,10 @@ package com.qingliao.server.service;
 
 import com.qingliao.server.entity.*;
 import com.qingliao.server.repository.*;
+import com.qingliao.server.websocket.ChatWebSocketHandler;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class FriendService {
@@ -14,15 +15,17 @@ public class FriendService {
     private final UserRepository userRepo;
     private final ChatSessionRepository sessionRepo;
     private final SessionMemberRepository memberRepo;
+    private final ChatWebSocketHandler wsHandler;
 
     public FriendService(FriendRequestRepository requestRepo, FriendshipRepository friendshipRepo,
                          UserRepository userRepo, ChatSessionRepository sessionRepo,
-                         SessionMemberRepository memberRepo) {
+                         SessionMemberRepository memberRepo, ChatWebSocketHandler wsHandler) {
         this.requestRepo = requestRepo;
         this.friendshipRepo = friendshipRepo;
         this.userRepo = userRepo;
         this.sessionRepo = sessionRepo;
         this.memberRepo = memberRepo;
+        this.wsHandler = wsHandler;
     }
 
     public String sendRequest(Long senderId, Long receiverId, String message) {
@@ -38,6 +41,18 @@ public class FriendService {
         req.setReceiverId(receiverId);
         req.setMessage(message != null ? message : "");
         requestRepo.save(req);
+
+        // Push real-time notification to receiver
+        User sender = userRepo.findById(senderId).orElse(null);
+        Map<String, Object> push = new HashMap<>();
+        push.put("type", "friend_request");
+        push.put("requestId", req.getId());
+        push.put("senderId", senderId);
+        push.put("senderName", sender != null ? sender.getNickname() : "");
+        push.put("message", message != null ? message : "");
+        push.put("timestamp", System.currentTimeMillis());
+        wsHandler.sendToUserDirect(receiverId, push);
+
         return null;
     }
 

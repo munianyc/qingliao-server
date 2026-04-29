@@ -11,6 +11,9 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class CallSignalingHandler extends TextWebSocketHandler {
@@ -20,10 +23,16 @@ public class CallSignalingHandler extends TextWebSocketHandler {
     private final JwtUtil jwtUtil;
 
     private final Map<Long, Set<WebSocketSession>> userSessions = new ConcurrentHashMap<>();
+    private final Map<String, Long> sessionUserMap = new ConcurrentHashMap<>();
     private final Set<Long> busyUsers = ConcurrentHashMap.newKeySet();
+    private final Map<Long, Long> callOfferTimestamps = new ConcurrentHashMap<>();
+    private static final long CALL_TIMEOUT_MS = 60_000;
+
+    private final ScheduledExecutorService timeoutScheduler = Executors.newSingleThreadScheduledExecutor();
 
     public CallSignalingHandler(JwtUtil jwtUtil) {
         this.jwtUtil = jwtUtil;
+        timeoutScheduler.scheduleAtFixedRate(this::cleanupStaleCalls, 10, 10, TimeUnit.SECONDS);
     }
 
     @Override
@@ -34,6 +43,7 @@ public class CallSignalingHandler extends TextWebSocketHandler {
             return;
         }
         Long userId = jwtUtil.getUserIdFromToken(token);
+        sessionUserMap.put(session.getId(), userId);
         userSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(session);
         log.info("Call WS connected: userId={}, total sessions={}", userId,
             userSessions.getOrDefault(userId, Set.of()).size());
@@ -41,7 +51,7 @@ public class CallSignalingHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        Long userId = getUserIdForSession(session);
+        Long userId = sessionUserMap.remove(session.getId());
         if (userId != null) {
             Set<WebSocketSession> sessions = userSessions.get(userId);
             if (sessions != null) {
@@ -86,6 +96,7 @@ public class CallSignalingHandler extends TextWebSocketHandler {
 
                     busyUsers.add(userId);
                     busyUsers.add(targetId);
+                    callOfferTimestamps.put(userId, System.currentTimeMillis());
 
                     Map<String, Object> forward = new HashMap<>();
                     forward.put("type", "call_offer");
@@ -177,15 +188,21 @@ public class CallSignalingHandler extends TextWebSocketHandler {
         }
     }
 
-    private Long getUserId(WebSocketSession session) { return getUserIdForSession(session); }
+    private Long getUserId(WebSocketSession session) { return sessionUserMap.get(session.getId()); }
 
-    private Long getUserIdForSession(WebSocketSession session) {
-        for (Map.Entry<Long, Set<WebSocketSession>> e : userSessions.entrySet()) {
-            for (WebSocketSession s : e.getValue()) {
-                if (s.getId().equals(session.getId())) return e.getKey();
+    private void cleanupStaleCalls() {
+        long now = System.currentTimeMillis();
+        Iterator<Map.Entry<Long, Long>> it = callOfferTimestamps.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Long, Long> entry = it.next();
+            if (now - entry.getValue() > CALL_TIMEOUT_MS) {
+                long callerId = entry.getKey();
+                it.remove();
+                sendToUser(callerId, Map.of("type", "call_timeout"));
+                busyUsers.remove(callerId);
+                log.warn("Call timeout for userId={}", callerId);
             }
         }
-        return null;
     }
 
     private String extractToken(WebSocketSession session) {

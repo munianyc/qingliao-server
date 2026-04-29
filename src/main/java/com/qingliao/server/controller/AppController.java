@@ -11,10 +11,10 @@ public class AppController {
     @GetMapping("/version")
     public ApiResponse<Map<String, Object>> getVersion() {
         return ApiResponse.ok(Map.of(
-            "versionCode", 10,
-            "versionName", "1.9.1",
-            "downloadUrl", "http://47.108.172.100/download/qingliao-release.apk",
-            "updateDesc", "1. 群聊功能（创建/群信息/成员管理/群消息）\n2. 前置镜头镜像显示\n3. 通话ICE增强（多TURN+STUN+TCP穿透）\n4. 通话结束后聊天记录\n5. 接听/拒绝UI+计时器修复\n6. 来电全局显示+画中画+语音/视频选择"
+            "versionCode", 12,
+            "versionName", "2.0.1",
+            "downloadUrl", "http://47.108.172.100/download/qingliao-v2.0.1.apk",
+            "updateDesc", "1. 修复视频通话接通后无声音画面\n2. 修复底部导航栏红点显示不全\n3. 修复退出应用后消息通知丢失\n4. 优化WebSocket后台连接保持"
         ));
     }
 }

@@ -175,6 +175,21 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    /** Send a message directly to a user (not via session membership) */
+    public void sendToUserDirect(Long userId, Map<String, Object> payload) {
+        String json;
+        try { json = mapper.writeValueAsString(payload); } catch (Exception e) { return; }
+        TextMessage msg = new TextMessage(json);
+        List<WebSocketSession> sessions = userSessions.get(userId);
+        if (sessions != null) {
+            for (WebSocketSession ws : sessions) {
+                if (ws.isOpen()) {
+                    try { ws.sendMessage(msg); } catch (IOException ignored) {}
+                }
+            }
+        }
+    }
+
     private WebSocketSession findSession(String wsId) {
         for (List<WebSocketSession> list : userSessions.values()) {
             for (WebSocketSession s : list) {

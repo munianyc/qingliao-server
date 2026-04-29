@@ -36,8 +36,30 @@ public class MessageController {
     }
 
     @GetMapping("/{sessionId}")
-    public ApiResponse<List<Message>> getMessages(@PathVariable Long sessionId) {
-        return ApiResponse.ok(messageService.getMessages(sessionId));
+    public ApiResponse<List<Map<String, Object>>> getMessages(@PathVariable Long sessionId) {
+        List<Message> messages = messageService.getMessages(sessionId);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Message m : messages) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", m.getId());
+            map.put("sessionId", m.getSessionId());
+            map.put("senderId", m.getSenderId());
+            map.put("content", m.getContent());
+            map.put("type", m.getType());
+            map.put("imageUrl", m.getImageUrl());
+            map.put("fileName", m.getFileName());
+            map.put("fileSize", m.getFileSize());
+            map.put("isRead", m.getIsRead());
+            map.put("recalled", m.getRecalled());
+            map.put("timestamp", m.getTimestamp());
+            User sender = userService.getById(m.getSenderId());
+            if (sender != null) {
+                map.put("senderName", sender.getNickname());
+                map.put("senderAvatar", sender.getAvatar());
+            }
+            result.add(map);
+        }
+        return ApiResponse.ok(result);
     }
 
     @PostMapping("/{sessionId}")
