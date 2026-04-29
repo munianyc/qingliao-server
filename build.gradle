@@ -28,6 +28,12 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
     runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // 极光推送 JPush Java SDK
+    implementation 'cn.jpush.api:jpush-client:3.5.3'
+
+    // Firebase Admin SDK
+    implementation 'com.google.firebase:firebase-admin:9.2.0'
 }
 
 tasks.named('bootJar') {

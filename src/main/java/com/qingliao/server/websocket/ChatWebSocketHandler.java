@@ -4,10 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qingliao.server.entity.Message;
 import com.qingliao.server.entity.SessionMember;
 import com.qingliao.server.entity.User;
+import com.qingliao.server.entity.UserFcmToken;
 import com.qingliao.server.repository.SessionMemberRepository;
+import com.qingliao.server.repository.UserFcmTokenRepository;
 import com.qingliao.server.security.JwtUtil;
 import com.qingliao.server.service.MessageService;
 import com.qingliao.server.service.UserService;
+import com.qingliao.server.service.FirebaseMessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -30,13 +33,19 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private final Map<Long, List<WebSocketSession>> userSessions = new ConcurrentHashMap<>();
     private final Map<String, Long> wsUserMap = new ConcurrentHashMap<>();
+    private final FirebaseMessagingService firebaseMessagingService;
+    private final UserFcmTokenRepository fcmTokenRepo;
 
     public ChatWebSocketHandler(JwtUtil jwtUtil, MessageService messageService,
-                                UserService userService, SessionMemberRepository memberRepo) {
+                                UserService userService, SessionMemberRepository memberRepo,
+                                FirebaseMessagingService firebaseMessagingService,
+                                UserFcmTokenRepository fcmTokenRepo) {
         this.jwtUtil = jwtUtil;
         this.messageService = messageService;
         this.userService = userService;
         this.memberRepo = memberRepo;
+        this.firebaseMessagingService = firebaseMessagingService;
+        this.fcmTokenRepo = fcmTokenRepo;
     }
 
     @Override
@@ -165,11 +174,41 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         List<SessionMember> members = memberRepo.findBySessionId(sessionId);
         for (SessionMember member : members) {
             List<WebSocketSession> sessions = userSessions.get(member.getUserId());
+            boolean isOnline = false;
+
             if (sessions != null) {
                 for (WebSocketSession ws : sessions) {
                     if (ws.isOpen()) {
-                        try { ws.sendMessage(msg); } catch (IOException ignored) {}
+                        try {
+                            ws.sendMessage(msg);
+                            isOnline = true;
+                        } catch (IOException ignored) {}
                     }
+                }
+            }
+
+            // 如果用户不在线，发送Firebase推送
+            if (!isOnline && "chat".equals(payload.get("type"))) {
+                try {
+                    String type = (String) payload.get("type");
+                    if ("chat".equals(type)) {
+                        Long senderId = payload.get("senderId") != null ? ((Number) payload.get("senderId")).longValue() : 0;
+                        String senderName = (String) payload.getOrDefault("senderName", "好友");
+                        String content = (String) payload.getOrDefault("content", "");
+
+                        // 不给自己发推送
+                        if (!member.getUserId().equals(senderId)) {
+                            // 获取用户的FCM token
+                            List<UserFcmToken> fcmTokens = fcmTokenRepo.findByUserId(member.getUserId());
+                            for (UserFcmToken fcmToken : fcmTokens) {
+                                firebaseMessagingService.sendChatPush(
+                                        fcmToken.getFcmToken(), senderName, content, sessionId, senderId);
+                            }
+                            log.info("FCM sent to userId={} for message from {}", member.getUserId(), senderName);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to send FCM", e);
                 }
             }
         }
