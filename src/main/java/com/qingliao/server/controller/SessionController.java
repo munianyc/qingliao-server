@@ -6,8 +6,7 @@ import com.qingliao.server.repository.SessionMemberRepository;
 import com.qingliao.server.security.SecurityUtil;
 import com.qingliao.server.service.SessionService;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/sessions")
@@ -39,11 +38,9 @@ public class SessionController {
             map.put("lastMessageTime", s.getLastMessageTime());
             map.put("createdAt", s.getCreatedAt());
 
-            // Add unread count for the current user
             SessionMember member = memberRepo.findBySessionIdAndUserId(s.getId(), userId).orElse(null);
             map.put("unreadCount", member != null ? member.getUnreadCount() : 0);
 
-            // For single sessions, include the other user's info and avatar
             if (s.getType() == 0) {
                 List<com.qingliao.server.entity.User> members = sessionService.getMembers(s.getId());
                 for (com.qingliao.server.entity.User m : members) {
@@ -56,6 +53,9 @@ public class SessionController {
                         break;
                     }
                 }
+            } else {
+                // Group: include member count
+                map.put("memberCount", memberRepo.findBySessionId(s.getId()).size());
             }
             result.add(map);
         }
@@ -78,6 +78,14 @@ public class SessionController {
     public ApiResponse<ChatSession> createGroup(@RequestBody CreateGroupRequest req) {
         return ApiResponse.ok(sessionService.createGroup(
                 req.getName(), req.getMemberIds(), securityUtil.getCurrentUserId()));
+    }
+
+    @PutMapping("/{sessionId}")
+    public ApiResponse<?> updateGroup(@PathVariable Long sessionId, @RequestBody Map<String, String> body) {
+        ChatSession session = sessionService.updateGroup(sessionId,
+                body.get("name"), body.get("avatar"));
+        if (session == null) return ApiResponse.error(404, "群聊不存在");
+        return ApiResponse.ok(session);
     }
 
     @GetMapping("/{sessionId}/members")

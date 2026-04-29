@@ -89,6 +89,16 @@ public class SessionService {
     }
 
     @Transactional
+    public ChatSession updateGroup(Long sessionId, String name, String avatar) {
+        ChatSession session = sessionRepo.findById(sessionId).orElse(null);
+        if (session == null || session.getType() != 1) return null;
+        if (name != null && !name.isEmpty()) session.setName(name);
+        if (avatar != null) session.setAvatar(avatar);
+        sessionRepo.save(session);
+        return session;
+    }
+
+    @Transactional
     public void deleteSession(Long sessionId, Long userId) {
         // Only allow the member to delete the session for themselves
         memberRepo.findBySessionIdAndUserId(sessionId, userId)
