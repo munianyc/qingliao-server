@@ -51,6 +51,8 @@ public class SessionController {
                         map.put("otherUserId", m.getId());
                         map.put("otherUserName", m.getNickname());
                         map.put("avatar", m.getAvatar() != null ? m.getAvatar() : "");
+                        map.put("onlineStatus", m.getOnlineStatus());
+                        map.put("lastOnline", m.getLastOnline());
                         break;
                     }
                 }

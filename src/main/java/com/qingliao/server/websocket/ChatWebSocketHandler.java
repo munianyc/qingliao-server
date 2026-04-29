@@ -50,6 +50,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         wsUserMap.put(session.getId(), userId);
         userSessions.computeIfAbsent(userId, k -> Collections.synchronizedList(new ArrayList<>())).add(session);
         userService.updateOnlineStatus(userId, 1);
+        broadcastStatus(userId, "user_online");
         log.info("WebSocket connected: userId={}", userId);
     }
 
@@ -124,6 +125,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 if (sessions.isEmpty()) {
                     userSessions.remove(userId);
                     userService.updateOnlineStatus(userId, 0);
+                    broadcastStatus(userId, "user_offline");
                 }
             }
             log.info("WebSocket disconnected: userId={}", userId);
@@ -133,6 +135,25 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
         log.error("WebSocket transport error", exception);
+    }
+
+    private void broadcastStatus(Long userId, String statusType) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", statusType);
+        payload.put("senderId", userId);
+        payload.put("timestamp", System.currentTimeMillis());
+        String json;
+        try { json = mapper.writeValueAsString(payload); } catch (Exception e) { return; }
+        TextMessage msg = new TextMessage(json);
+
+        // Broadcast to all connected users (they filter on client side)
+        for (List<WebSocketSession> sessions : userSessions.values()) {
+            for (WebSocketSession ws : sessions) {
+                if (ws.isOpen()) {
+                    try { ws.sendMessage(msg); } catch (IOException ignored) {}
+                }
+            }
+        }
     }
 
     /** Public method called by REST controllers to push to session members */

@@ -29,7 +29,18 @@ public class WebSocketEventListener {
 
     @EventListener
     public void handleConnect(SessionConnectedEvent event) {
-        // Extract user from headers and set online
+        SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.wrap(event.getMessage());
+        Principal principal = headers.getUser();
+        if (principal != null) {
+            Long userId = Long.parseLong(principal.getName());
+            sessionUserMap.put(headers.getSessionId(), userId);
+            userService.updateOnlineStatus(userId, 1);
+
+            WsMessage statusMsg = new WsMessage();
+            statusMsg.setType("user_online");
+            statusMsg.setSenderId(userId);
+            messagingTemplate.convertAndSend("/topic/status", statusMsg);
+        }
     }
 
     @EventListener
