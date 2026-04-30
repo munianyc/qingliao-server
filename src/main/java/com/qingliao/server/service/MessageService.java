@@ -59,6 +59,10 @@ public class MessageService {
         return messageRepo.findBySessionIdOrderByTimestampAsc(sessionId);
     }
 
+    public List<Message> getMessagesAfter(Long sessionId, long afterTimestamp) {
+        return messageRepo.findBySessionIdAndTimestampGreaterThanOrderByTimestampAsc(sessionId, afterTimestamp);
+    }
+
     @Transactional
     public void markAsRead(Long sessionId, Long userId) {
         messageRepo.markAsRead(sessionId, userId);

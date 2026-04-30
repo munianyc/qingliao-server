@@ -38,6 +38,18 @@ public class MessageController {
     @GetMapping("/{sessionId}")
     public ApiResponse<List<Map<String, Object>>> getMessages(@PathVariable Long sessionId) {
         List<Message> messages = messageService.getMessages(sessionId);
+        return ApiResponse.ok(buildMessageList(messages));
+    }
+
+    @GetMapping("/{sessionId}/after")
+    public ApiResponse<List<Map<String, Object>>> getMessagesAfter(
+            @PathVariable Long sessionId,
+            @RequestParam("after") long afterTimestamp) {
+        List<Message> messages = messageService.getMessagesAfter(sessionId, afterTimestamp);
+        return ApiResponse.ok(buildMessageList(messages));
+    }
+
+    private List<Map<String, Object>> buildMessageList(List<Message> messages) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Message m : messages) {
             Map<String, Object> map = new HashMap<>();
@@ -59,7 +71,7 @@ public class MessageController {
             }
             result.add(map);
         }
-        return ApiResponse.ok(result);
+        return result;
     }
 
     @PostMapping("/{sessionId}")

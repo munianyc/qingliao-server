@@ -11,6 +11,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     List<Message> findBySessionIdOrderByTimestampAsc(Long sessionId);
 
+    List<Message> findBySessionIdAndTimestampGreaterThanOrderByTimestampAsc(Long sessionId, long afterTimestamp);
+
     @Modifying
     @Transactional
     @Query("UPDATE Message m SET m.isRead = 1 WHERE m.sessionId = :sessionId AND m.senderId != :userId")
@@ -21,4 +23,12 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     @Query("SELECT m FROM Message m WHERE m.sessionId IN :sessionIds AND m.isRead = 0 AND m.senderId != :userId")
     List<Message> findUnreadBySessions(List<Long> sessionIds, Long userId);
+
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM messages WHERE session_id = :sessionId AND is_read = 1 " +
+        "AND id NOT IN (SELECT id FROM (SELECT id FROM messages WHERE session_id = :sessionId " +
+        "ORDER BY timestamp DESC LIMIT :keepCount) AS t) " +
+        "AND timestamp < :cutoff", nativeQuery = true)
+    int deleteOldReadMessages(Long sessionId, int keepCount, long cutoff);
 }
