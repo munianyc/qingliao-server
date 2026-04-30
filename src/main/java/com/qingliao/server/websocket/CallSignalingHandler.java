@@ -155,6 +155,16 @@ public class CallSignalingHandler extends TextWebSocketHandler {
                     }
                     break;
                 }
+                case "renegotiate": {
+                    Number targetNum = (Number) msg.get("targetId");
+                    if (targetNum == null) return;
+                    Map<String, Object> forward = new HashMap<>();
+                    forward.put("type", "renegotiate");
+                    forward.put("from", userId);
+                    forward.put("sdp", msg.get("sdp"));
+                    sendToUser(targetNum.longValue(), forward);
+                    break;
+                }
             }
         } catch (Exception e) {
             log.error("Call signaling error", e);

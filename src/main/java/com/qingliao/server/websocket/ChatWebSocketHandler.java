@@ -18,6 +18,7 @@ import org.springframework.web.socket.*;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -187,28 +188,25 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 }
             }
 
-            // 如果用户不在线，发送Firebase推送
+            // 如果用户不在线，异步发送Firebase推送（避免阻塞消息发送响应）
             if (!isOnline && "chat".equals(payload.get("type"))) {
-                try {
-                    String type = (String) payload.get("type");
-                    if ("chat".equals(type)) {
-                        Long senderId = payload.get("senderId") != null ? ((Number) payload.get("senderId")).longValue() : 0;
-                        String senderName = (String) payload.getOrDefault("senderName", "好友");
-                        String content = (String) payload.getOrDefault("content", "");
-
-                        // 不给自己发推送
-                        if (!member.getUserId().equals(senderId)) {
-                            // 获取用户的FCM token
-                            List<UserFcmToken> fcmTokens = fcmTokenRepo.findByUserId(member.getUserId());
+                Long senderId = payload.get("senderId") != null ? ((Number) payload.get("senderId")).longValue() : 0;
+                String senderName = (String) payload.getOrDefault("senderName", "好友");
+                String content = (String) payload.getOrDefault("content", "");
+                Long uid = member.getUserId();
+                if (!uid.equals(senderId)) {
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            List<UserFcmToken> fcmTokens = fcmTokenRepo.findByUserId(uid);
                             for (UserFcmToken fcmToken : fcmTokens) {
                                 firebaseMessagingService.sendChatPush(
                                         fcmToken.getFcmToken(), senderName, content, sessionId, senderId);
                             }
-                            log.info("FCM sent to userId={} for message from {}", member.getUserId(), senderName);
+                            log.info("FCM sent to userId={} for message from {}", uid, senderName);
+                        } catch (Exception e) {
+                            log.error("Failed to send FCM to userId={}", uid, e);
                         }
-                    }
-                } catch (Exception e) {
-                    log.error("Failed to send FCM", e);
+                    });
                 }
             }
         }

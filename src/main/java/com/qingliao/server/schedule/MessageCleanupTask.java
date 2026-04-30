@@ -13,7 +13,7 @@ import java.util.List;
 public class MessageCleanupTask {
 
     private static final Logger log = LoggerFactory.getLogger(MessageCleanupTask.class);
-    private static final int KEEP_READ_COUNT = 30;
+    private static final int KEEP_READ_COUNT = 20;
     private static final long SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000L;
 
     private final MessageRepository messageRepo;
