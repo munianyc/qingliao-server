@@ -35,11 +35,11 @@ public class UserController {
                 if (newId != null && !newId.isEmpty()) {
                     User current = userService.getById(securityUtil.getCurrentUserId());
                     if (current != null && !newId.equals(current.getUsername())) {
-                        if (newId.length() < 3) return ApiResponse.error(400, "轻聊号至少3个字符");
+                        if (newId.length() < 3) return ApiResponse.error(400, "屿聊号至少3个字符");
                         long now = System.currentTimeMillis();
                         if (current.getQidModifiedAt() > 0 && (now - current.getQidModifiedAt()) < 86400000L)
-                            return ApiResponse.error(400, "轻聊号每天只能修改一次");
-                        return ApiResponse.error(400, "轻聊号已被占用");
+                            return ApiResponse.error(400, "屿聊号每天只能修改一次");
+                        return ApiResponse.error(400, "屿聊号已被占用");
                     }
                 }
             }
@@ -50,7 +50,7 @@ public class UserController {
 
     @GetMapping("/check-qid")
     public ApiResponse<?> checkQingliaoId(@RequestParam String qid) {
-        if (qid.length() < 3) return ApiResponse.error(400, "轻聊号至少3个字符");
+        if (qid.length() < 3) return ApiResponse.error(400, "屿聊号至少3个字符");
         boolean exists = userService.isUsernameTaken(qid);
         return ApiResponse.ok(Map.of("available", !exists));
     }
