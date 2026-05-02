@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.qingliao</groupId>
     <artifactId>server</artifactId>
-    <version>1.0.0</version>
+    <version>3.0.0</version>
     <packaging>jar</packaging>
     <name>QingLiao Server</name>
 
